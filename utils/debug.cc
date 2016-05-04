@@ -2,6 +2,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+
+#include <pthread.h>
+#include <iostream>
+#include <sys/time.h>
+
 #include "time_utils.h"
 
 #include "breakpad.h"
@@ -225,6 +230,37 @@ void dbg_print_buf(void *buf, uint64_t buflen, bool hex, int align)
     } else {
         fprintf(stderr, "(null)\n");
     }
+}
+
+void TRACE_EVENT(const char* event_name,
+                 int fd,
+                 const char* format, ...) {
+    char msg[4096];
+
+    // Time
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    struct tm *tm = localtime(&tv.tv_sec);
+
+    pthread_t ptid = pthread_self();
+    uint64_t threadid;
+    memcpy(&threadid, &ptid, std::min(sizeof(threadid), sizeof(ptid)));
+
+    sprintf(msg, "%d-%.2d-%.2dT%.2d:%.2d:%.2d.%.6d :: ",
+                 tm->tm_year + 1900 /* tm_year: years since 1900*/,
+                 tm->tm_mon + 1 /* tm_mon: months since january*/,
+                 tm->tm_mday,
+                 tm->tm_hour, tm->tm_min, tm->tm_sec, tv.tv_usec);
+    sprintf(msg + strlen(msg), "[TID: %llu] :: ", threadid);
+    sprintf(msg + strlen(msg), "[FD: %d] :: ", fd);
+    sprintf(msg + strlen(msg), "%s :: ", event_name);
+
+    va_list args;
+    va_start(args, format);
+    vsprintf(msg + strlen(msg), format, args);
+    va_end(args);
+
+    fprintf(stderr, "[TRACE] %s\n", msg);
 }
 
 // LCOV_EXCL_STOP

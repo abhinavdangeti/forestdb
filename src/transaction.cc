@@ -32,6 +32,10 @@ LIBFDB_API
 fdb_status fdb_begin_transaction(fdb_file_handle *fhandle,
                                  fdb_isolation_level_t isolation_level)
 {
+    TRACE_EVENT(__func__, fhandle ? fhandle->root->file->fd : -1,
+                "file_handle: %p, isolation_level: %d",
+                fhandle, isolation_level);
+
     if (!fhandle || !fhandle->root) {
         return FDB_RESULT_INVALID_HANDLE;
     }
@@ -105,6 +109,9 @@ fdb_status fdb_begin_transaction(fdb_file_handle *fhandle,
 LIBFDB_API
 fdb_status fdb_abort_transaction(fdb_file_handle *fhandle)
 {
+    TRACE_EVENT(__func__, fhandle ? fhandle->root->file->fd : -1,
+                "file_handle: %p", fhandle);
+
     if (!fhandle) {
         return FDB_RESULT_INVALID_HANDLE;
     }
@@ -169,6 +176,9 @@ LIBFDB_API
 fdb_status fdb_end_transaction(fdb_file_handle *fhandle,
                                fdb_commit_opt_t opt)
 {
+    TRACE_EVENT(__func__, fhandle ? fhandle->root->file->fd : -1,
+                "file_handle: %p, opt: %d", fhandle, opt);
+
     if (!fhandle || !fhandle->root) {
         return FDB_RESULT_INVALID_HANDLE;
     }

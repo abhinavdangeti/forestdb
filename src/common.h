@@ -21,6 +21,10 @@
 #include <stdlib.h>
 #include <stdint.h>
 
+#include <strings.h>
+#include <stdarg.h>
+#include <sys/time.h>
+
 #undef NDEBUG
 #include <assert.h>
 
@@ -93,5 +97,8 @@ void fdb_assert_die(const char* expression, const char* file, int line,
 #define fdb_assert(cond, val, expected)   \
     ((void)((cond) ? (void)0 : fdb_assert_die(#cond, __FILE__, __LINE__,\
                                               (uint64_t)(val), (uint64_t)(expected))))
+
+
+void TRACE_EVENT(const char* event, int fd, const char* format, ...);
 
 #endif // _JSAHN_COMMON_H

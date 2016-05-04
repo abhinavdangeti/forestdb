@@ -668,6 +668,7 @@ INLINE void init_initial_lock_status() {
 LIBFDB_API
 fdb_status fdb_init(fdb_config *config)
 {
+    TRACE_EVENT(__func__, -1, "Config %p", config);
     fdb_config _config;
     compactor_config c_config;
     bgflusher_config bgf_config;
@@ -756,6 +757,8 @@ fdb_status fdb_open(fdb_file_handle **ptr_fhandle,
                     const char *filename,
                     fdb_config *fconfig)
 {
+    TRACE_EVENT(__func__, -1, "FileHandle: %p, FConfig: %p",
+                *ptr_fhandle, fconfig);
 #ifdef _MEMPOOL
     mempool_init();
 #endif
@@ -953,6 +956,8 @@ LIBFDB_API
 fdb_status fdb_snapshot_open(fdb_kvs_handle *handle_in,
                              fdb_kvs_handle **ptr_handle, fdb_seqnum_t seqnum)
 {
+    TRACE_EVENT(__func__, handle_in ? handle_in->file->fd : -1,
+                "fdb_kvs_handle %p, seqnum: %llu", handle_in, seqnum);
 #ifdef _MEMPOOL
     mempool_init();
 #endif
@@ -1164,6 +1169,8 @@ static fdb_status _fdb_reset(fdb_kvs_handle *handle, fdb_kvs_handle *handle_in);
 LIBFDB_API
 fdb_status fdb_rollback(fdb_kvs_handle **handle_ptr, fdb_seqnum_t seqnum)
 {
+    TRACE_EVENT(__func__, *handle_ptr ? (*handle_ptr)->file->fd : -1,
+                "fdb_kvs_handle: %p, seqnum: %llu", *handle_ptr, seqnum);
 #ifdef _MEMPOOL
     mempool_init();
 #endif
@@ -1294,6 +1301,8 @@ LIBFDB_API
 fdb_status fdb_rollback_all(fdb_file_handle *fhandle,
                             fdb_snapshot_marker_t marker)
 {
+    TRACE_EVENT(__func__, fhandle ? fhandle->root->file->fd : -1,
+                "file handle %p, marker: %llu", fhandle, marker);
 #ifdef _MEMPOOL
     mempool_init();
 #endif
@@ -2192,6 +2201,8 @@ fdb_status fdb_set_log_callback(fdb_kvs_handle *handle,
                                 fdb_log_callback log_callback,
                                 void *ctx_data)
 {
+    TRACE_EVENT(__func__, handle ? handle->file->fd : -1,
+                "FileHandle: %p, CtxData: %p", handle, ctx_data);
     if (!handle) {
         return FDB_RESULT_INVALID_HANDLE;
     }
@@ -4090,6 +4101,8 @@ static fdb_status _fdb_append_commit_mark(void *voidhandle, uint64_t offset)
 LIBFDB_API
 fdb_status fdb_commit(fdb_file_handle *fhandle, fdb_commit_opt_t opt)
 {
+    TRACE_EVENT(__func__, fhandle ? fhandle->root->file->fd : -1,
+                "file handle: %p, commit_opt: %d", fhandle, opt);
     if (!fhandle) {
         return FDB_RESULT_INVALID_HANDLE;
     }
@@ -7184,6 +7197,11 @@ static fdb_status _fdb_compact(fdb_file_handle *fhandle,
                                bool clone_docs,
                                const fdb_encryption_key *new_encryption_key)
 {
+    TRACE_EVENT(__func__, fhandle ? fhandle->root->file->fd : -1,
+                "file handle: %p, new_filename: %s, marker: %llu"
+                ", clone_docs: %d",
+                fhandle, new_filename, marker, clone_docs);
+
     if (!fhandle || !fhandle->root) {
         return FDB_RESULT_INVALID_HANDLE;
     }
@@ -7376,6 +7394,8 @@ fdb_status fdb_set_daemon_compaction_interval(fdb_file_handle *fhandle,
 LIBFDB_API
 fdb_status fdb_close(fdb_file_handle *fhandle)
 {
+    TRACE_EVENT(__func__, fhandle ? fhandle->root->file->fd : -1,
+                "file handle: %p", fhandle);
     if (!fhandle) {
         return FDB_RESULT_INVALID_HANDLE;
     }
@@ -7798,6 +7818,8 @@ fdb_status fdb_get_all_snap_markers(fdb_file_handle *fhandle,
                                     fdb_snapshot_info_t **markers_out,
                                     uint64_t *num_markers)
 {
+    TRACE_EVENT(__func__, fhandle ? fhandle->root->file->fd : -1,
+                "file handle: %p", fhandle);
     fdb_kvs_handle *handle;
     bid_t hdr_bid;
     size_t header_len;

@@ -107,6 +107,11 @@ fdb_status fdb_iterator_init(fdb_kvs_handle *handle,
                              size_t end_keylen,
                              fdb_iterator_opt_t opt)
 {
+    TRACE_EVENT(__func__, handle ? handle->file->fd : -1,
+                          "kvs handle: %p, start_key: %s, end_key: %s, itr_op: %d",
+                          handle, (const char*)start_key, (const char*)end_key,
+                          opt);
+
     if (!handle) {
         return FDB_RESULT_INVALID_HANDLE;
     }
@@ -277,6 +282,9 @@ fdb_status fdb_iterator_sequence_init(fdb_kvs_handle *handle,
                                       const fdb_seqnum_t end_seq,
                                       fdb_iterator_opt_t opt)
 {
+    TRACE_EVENT(__func__, handle ? handle->file->fd : -1,
+                          "kvs handle: %p, start_seq: %llu, end_seq: %llu, itr_op: %d",
+                          handle, start_seq, end_seq, opt);
     if (!handle) {
         return FDB_RESULT_INVALID_HANDLE;
     }
@@ -739,6 +747,10 @@ fdb_status fdb_iterator_seek(fdb_iterator *iterator,
                              const size_t seek_keylen,
                              const fdb_iterator_seek_opt_t seek_pref)
 {
+    TRACE_EVENT(__func__, iterator ? iterator->handle->file->fd : -1,
+                "iterator: %p, seek_key: %s, seek_pref: %d",
+                iterator, seek_key, seek_pref);
+
     if (!iterator || !iterator->handle) {
         return FDB_RESULT_INVALID_HANDLE;
     }
@@ -1208,6 +1220,9 @@ fetch_hbtrie:
 LIBFDB_API
 fdb_status fdb_iterator_seek_to_min(fdb_iterator *iterator)
 {
+    TRACE_EVENT(__func__, iterator ? iterator->handle->file->fd : -1,
+                "iterator: %p", iterator);
+
     if (!iterator || !iterator->handle) {
         return FDB_RESULT_INVALID_HANDLE;
     }
@@ -1411,6 +1426,9 @@ fdb_status _fdb_iterator_seek_to_max_seq(fdb_iterator *iterator) {
 LIBFDB_API
 fdb_status fdb_iterator_seek_to_max(fdb_iterator *iterator)
 {
+    TRACE_EVENT(__func__, iterator ? iterator->handle->file->fd : -1,
+                "iterator: %p", iterator);
+
     if (!iterator || !iterator->handle) {
         return FDB_RESULT_INVALID_HANDLE;
     }
@@ -1794,6 +1812,9 @@ start_seq:
 LIBFDB_API
 fdb_status fdb_iterator_prev(fdb_iterator *iterator)
 {
+    TRACE_EVENT(__func__, iterator ? iterator->handle->file->fd : -1,
+                "iterator: %p", iterator);
+
     if (!iterator || !iterator->handle) {
         return FDB_RESULT_INVALID_HANDLE;
     }
@@ -1834,6 +1855,9 @@ fdb_status fdb_iterator_prev(fdb_iterator *iterator)
 LIBFDB_API
 fdb_status fdb_iterator_next(fdb_iterator *iterator)
 {
+    TRACE_EVENT(__func__, iterator ? iterator->handle->file->fd : -1,
+                "iterator: %p", iterator);
+
     if (!iterator || !iterator->handle) {
         return FDB_RESULT_INVALID_HANDLE;
     }
@@ -2071,6 +2095,9 @@ fdb_status fdb_iterator_get_metaonly(fdb_iterator *iterator, fdb_doc **doc)
 LIBFDB_API
 fdb_status fdb_iterator_close(fdb_iterator *iterator)
 {
+    TRACE_EVENT(__func__, iterator ? iterator->handle->file->fd : -1,
+                "iterator: %p", iterator);
+
     if (!iterator || !iterator->handle) {
         return FDB_RESULT_INVALID_HANDLE;
     }

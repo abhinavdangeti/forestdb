@@ -1605,6 +1605,9 @@ fdb_status fdb_kvs_open(fdb_file_handle *fhandle,
                         const char *kvs_name,
                         fdb_kvs_config *kvs_config)
 {
+    TRACE_EVENT(__func__, fhandle ? fhandle->root->file->fd : -1,
+                "file handle: %p, kvs_name: %s", fhandle, kvs_name);
+
     fdb_kvs_handle *handle;
     fdb_config config;
     fdb_status fs;
@@ -1820,6 +1823,9 @@ fdb_status fdb_kvs_close_all(fdb_kvs_handle *root_handle)
 LIBFDB_API
 fdb_status fdb_kvs_close(fdb_kvs_handle *handle)
 {
+    TRACE_EVENT(__func__, handle ? handle->file->fd : -1,
+                "kvs_handle: %p", handle);
+
     fdb_status fs;
 
     if (!handle) {
