@@ -307,11 +307,28 @@ fdb_status fdb_get_byoffset(fdb_kvs_handle *handle,
  *
  * @param handle Pointer to ForestDB KV store handle.
  * @param doc Pointer to ForestDB doc instance that is used to update a key.
+ *
  * @return FDB_RESULT_SUCCESS on success.
  */
 LIBFDB_API
 fdb_status fdb_set(fdb_kvs_handle *handle,
                    fdb_doc *doc);
+
+/**
+ * Extension of fdb_set API that supports a write callback.
+ *
+ * @param handle Pointer to ForestDB KV store handle.
+ * @param doc Pointer to ForestDB doc instance that is used to update a key.
+ * @param writeCallback Callback routine to update any stats based on the write op.
+ * @param ctx Pointer to data to be used in the callback context
+ *
+ * @return FDB_RESULT_SUCCESS on success.
+ */
+LIBFDB_API
+fdb_status fdb_set_with_cb(fdb_kvs_handle *handle,
+                           fdb_doc *doc,
+                           fdb_write_callback_fn writeCallback,
+                           void *ctx);
 
 /**
  * Delete a key, its metadata and value
@@ -485,10 +502,10 @@ fdb_status fdb_iterator_init(fdb_kvs_handle *handle,
  */
 LIBFDB_API
 fdb_status fdb_iterator_sequence_init(fdb_kvs_handle *handle,
-                             fdb_iterator **iterator,
-                             const fdb_seqnum_t min_seq,
-                             const fdb_seqnum_t max_seq,
-                             fdb_iterator_opt_t opt);
+                                      fdb_iterator **iterator,
+                                      const fdb_seqnum_t min_seq,
+                                      const fdb_seqnum_t max_seq,
+                                      fdb_iterator_opt_t opt);
 
 /**
  * Move the iterator backward by one.

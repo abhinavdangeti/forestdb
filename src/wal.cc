@@ -509,7 +509,9 @@ INLINE fdb_status _wal_insert(fdb_txn *txn,
                               fdb_doc *doc,
                               uint64_t offset,
                               wal_insert_by caller,
-                              bool immediate_remove)
+                              bool immediate_remove,
+                              fdb_write_callback_fn write_callback,
+                              void *ctx)
 {
     struct wal_item *item;
     struct wal_item_header query, *header;
@@ -633,6 +635,12 @@ INLINE fdb_status _wal_insert(fdb_txn *txn,
                 list_remove(&header->items, &item->list_elem);
                 list_push_front(&header->items, &item->list_elem);
                 atomic_decr_uint64_t(&shandle->wal_ndocs);
+
+                // Invoke write callback if registered
+                if (write_callback) {
+                    write_callback(doc, ctx);
+                }
+
                 break;
             }
             le = list_next(le);
@@ -802,9 +810,12 @@ fdb_status wal_insert(fdb_txn *txn,
                       struct _fdb_key_cmp_info *cmp_info,
                       fdb_doc *doc,
                       uint64_t offset,
-                      wal_insert_by caller)
+                      wal_insert_by caller,
+                      fdb_write_callback_fn write_callback,
+                      void *ctx)
 {
-    return _wal_insert(txn, file, cmp_info, doc, offset, caller, false);
+    return _wal_insert(txn, file, cmp_info, doc,
+                       offset, caller, false, write_callback, ctx);
 }
 
 fdb_status wal_immediate_remove(fdb_txn *txn,
@@ -814,7 +825,8 @@ fdb_status wal_immediate_remove(fdb_txn *txn,
                                 uint64_t offset,
                                 wal_insert_by caller)
 {
-    return _wal_insert(txn, file, cmp_info, doc, offset, caller, true);
+    return _wal_insert(txn, file, cmp_info, doc,
+                       offset, caller, true, NULL, NULL);
 }
 
 INLINE bool _wal_item_partially_committed(fdb_txn *global_txn,
@@ -1564,11 +1576,15 @@ INLINE fdb_status _wal_do_flush(struct wal_item *item,
                                 wal_flush_func *flush_func,
                                 void *dbhandle,
                                 struct avl_tree *stale_seqnum_list,
-                                struct avl_tree *kvs_delta_stats)
+                                struct avl_tree *kvs_delta_stats,
+                                fdb_write_callback_fn write_callback,
+                                void *ctx)
 {
     // check weather this item is updated after insertion into tree
     if (item->flag & WAL_ITEM_FLUSH_READY) {
-        fdb_status fs = flush_func(dbhandle, item, stale_seqnum_list, kvs_delta_stats);
+        fdb_status fs = flush_func(dbhandle, item,
+                                   stale_seqnum_list, kvs_delta_stats,
+                                   write_callback, ctx);
         if (fs != FDB_RESULT_SUCCESS) {
             fdb_kvs_handle *handle = (fdb_kvs_handle *) dbhandle;
             fdb_log(&handle->log_callback, fs,
@@ -1629,7 +1645,9 @@ static fdb_status _wal_flush(struct filemgr *file,
                              wal_flush_seq_purge_func *seq_purge_func,
                              wal_flush_kvs_delta_stats_func *delta_stats_func,
                              union wal_flush_items *flush_items,
-                             bool by_compactor)
+                             bool by_compactor,
+                             fdb_write_callback_fn write_callback,
+                             void *ctx)
 {
     struct avl_tree *tree = &flush_items->tree;
     struct list *list_head = &flush_items->list;
@@ -1726,7 +1744,8 @@ static fdb_status _wal_flush(struct filemgr *file,
                 continue; // need not flush this item into main index..
             } // item exists solely for in-memory snapshots
             fs = _wal_do_flush(item, flush_func, dbhandle,
-                               &stale_seqnum_list, &kvs_delta_stats);
+                               &stale_seqnum_list, &kvs_delta_stats,
+                               write_callback, ctx);
             if (fs != FDB_RESULT_SUCCESS) {
                 _wal_restore_root_info(dbhandle, &root_info);
                 break;
@@ -1742,7 +1761,8 @@ static fdb_status _wal_flush(struct filemgr *file,
                 continue; // need not flush this item into main index..
             } // item exists solely for in-memory snapshots
             fs = _wal_do_flush(item, flush_func, dbhandle,
-                               &stale_seqnum_list, &kvs_delta_stats);
+                               &stale_seqnum_list, &kvs_delta_stats,
+                               write_callback, ctx);
             if (fs != FDB_RESULT_SUCCESS) {
                 _wal_restore_root_info(dbhandle, &root_info);
                 break;
@@ -1765,11 +1785,13 @@ fdb_status wal_flush(struct filemgr *file,
                      wal_get_old_offset_func *get_old_offset,
                      wal_flush_seq_purge_func *seq_purge_func,
                      wal_flush_kvs_delta_stats_func *delta_stats_func,
-                     union wal_flush_items *flush_items)
+                     union wal_flush_items *flush_items,
+                     fdb_write_callback_fn write_callback,
+                     void *ctx)
 {
     return _wal_flush(file, dbhandle, flush_func, get_old_offset,
                       seq_purge_func, delta_stats_func,
-                      flush_items, false);
+                      flush_items, false, write_callback, ctx);
 }
 
 fdb_status wal_flush_by_compactor(struct filemgr *file,
@@ -1782,7 +1804,7 @@ fdb_status wal_flush_by_compactor(struct filemgr *file,
 {
     return _wal_flush(file, dbhandle, flush_func, get_old_offset,
                       seq_purge_func, delta_stats_func,
-                      flush_items, true);
+                      flush_items, true, NULL, NULL);
 }
 
 fdb_status wal_snapshot_clone(struct snap_handle *shandle_in,

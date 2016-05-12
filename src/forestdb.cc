@@ -2496,7 +2496,9 @@ INLINE void _fdb_wal_flush_kvs_delta_stats(struct filemgr *file,
 INLINE fdb_status _fdb_wal_flush_func(void *voidhandle,
                                       struct wal_item *item,
                                       struct avl_tree *stale_seqnum_list,
-                                      struct avl_tree *kvs_delta_stats)
+                                      struct avl_tree *kvs_delta_stats,
+                                      fdb_write_callback_fn write_callback,
+                                      void *ctx)
 {
     hbtrie_result hr;
     fdb_kvs_handle *handle = (fdb_kvs_handle *)voidhandle;
@@ -2639,6 +2641,14 @@ INLINE fdb_status _fdb_wal_flush_func(void *voidhandle,
                 avl_insert(stale_seqnum_list, &entry->avl_entry,
                            _fdb_seq_entry_cmp);
             }
+        }
+
+        // f in case of insert, invoke write callback if registered
+        if (item->action == WAL_ACT_INSERT && write_callback) {
+            fdb_doc wal_doc;
+            wal_doc.key = item->header->key;
+            wal_doc.keylen = item->header->keylen;
+            write_callback(&wal_doc, ctx);
         }
     } else {
         // Immediate remove
@@ -3595,6 +3605,13 @@ INLINE uint64_t _fdb_get_wal_threshold(fdb_kvs_handle *handle)
 
 LIBFDB_API
 fdb_status fdb_set(fdb_kvs_handle *handle, fdb_doc *doc)
+{
+    return fdb_set_with_cb(handle, doc, NULL, NULL);
+}
+
+LIBFDB_API
+fdb_status fdb_set_with_cb(fdb_kvs_handle *handle, fdb_doc *doc,
+                           fdb_write_callback_fn writeCallback, void *ctx)
 {
     if (!handle) {
         return FDB_RESULT_INVALID_HANDLE;

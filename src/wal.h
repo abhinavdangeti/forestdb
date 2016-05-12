@@ -151,7 +151,9 @@ struct wal_item{
 
 typedef fdb_status wal_flush_func(void *dbhandle, struct wal_item *item,
                                   struct avl_tree *stale_seqnum_list,
-                                  struct avl_tree *kvs_delta_stats);
+                                  struct avl_tree *kvs_delta_stats,
+                                  fdb_write_callback_fn write_callback,
+                                  void *ctx);
 
 /**
  * Pointer of function that purges stale entries from the sequence tree
@@ -250,7 +252,9 @@ fdb_status wal_insert(fdb_txn *txn,
                       struct _fdb_key_cmp_info *cmp_info,
                       fdb_doc *doc,
                       uint64_t offset,
-                      wal_insert_by caller);
+                      wal_insert_by caller,
+                      fdb_write_callback_fn write_callback = NULL,
+                      void *ctx = NULL);
 fdb_status wal_immediate_remove(fdb_txn *txn,
                                 struct filemgr *file,
                                 struct _fdb_key_cmp_info *cmp_info,
@@ -293,6 +297,10 @@ fdb_status wal_release_flushed_items(struct filemgr *file,
  * @param delta_stats_func Pointer of function that updates each KV store's stats
  * @param flush_items Pointer to the list that contains the list of all WAL entries
  *                    that are flushed into the main indexes
+ * @param writeCallback write_callback routine to update any stats based on the
+ *                      write op
+ * @param ctx Pointer to data to be used in the callback context
+ *
  * @return FDB_RESULT upon successful WAL flush
  */
 fdb_status wal_flush(struct filemgr *file,
@@ -301,7 +309,9 @@ fdb_status wal_flush(struct filemgr *file,
                      wal_get_old_offset_func *get_old_offset,
                      wal_flush_seq_purge_func *seq_purge_func,
                      wal_flush_kvs_delta_stats_func *delta_stats_func,
-                     union wal_flush_items *flush_items);
+                     union wal_flush_items *flush_items,
+                     fdb_write_callback_fn write_callback = NULL,
+                     void *ctx = NULL);
 
 /**
  * Flush WAL entries into the main indexes (i.e., hbtrie and sequence tree)

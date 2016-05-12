@@ -227,6 +227,20 @@ typedef struct fdb_doc_struct {
 } fdb_doc;
 
 /**
+ * The callback function will be used by:
+ *  - fdb_set()/wal_insert()
+ *  - fdb_commit()/wal_do_flush()
+ *
+ * This function will be invoked once for every fdb_set, and once for every
+ * item that is being committed as part of the fdb_commit.
+ *
+ * This function is typically used to update stats with respect to
+ * the set/commit operation.
+ */
+typedef int (*fdb_write_callback_fn)(fdb_doc *doc,
+                                     void *ctx);
+
+/**
  * Opaque reference to a ForestDB file handle, which is exposed in public APIs.
  */
 typedef struct _fdb_file_handle fdb_file_handle;
