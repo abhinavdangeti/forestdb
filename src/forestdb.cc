@@ -3376,11 +3376,20 @@ INLINE uint64_t _fdb_get_wal_threshold(fdb_kvs_handle *handle)
     return handle->config.wal_threshold;
 }
 
-LIBFDB_API
-fdb_status fdb_set(fdb_kvs_handle *handle, fdb_doc *doc)
-{
+enum op_type_t {
+    OP_CREATE,
+    OP_UPDATE
+};
+
+fdb_status _fdb_set(fdb_kvs_handle *handle, fdb_doc *doc,
+                    op_type_t *decisionReq) {
     if (!handle) {
         return FDB_RESULT_INVALID_HANDLE;
+    }
+
+    bool skip_wal = false;
+    if (decisionReq) {
+        skip_wal = true;
     }
 
     uint64_t offset;
@@ -3628,6 +3637,24 @@ fdb_set_start:
     }
     atomic_cas_uint8_t(&handle->handle_busy, 1, 0);
     return FDB_RESULT_SUCCESS;
+}
+
+LIBFDB_API
+fdb_status fdb_set(fdb_kvs_handle *handle, fdb_doc *doc)
+{
+    return _fdb_set(handle, doc, NULL);
+}
+
+LIBFDB_API
+fdb_status fdb_set_ex(fdb_kvs_handle *handle, fdb_doc *doc,
+                      fdb_changes_callback_fn func, void *ctx)
+{
+    op_type_t decision = OP_CREATE;
+    fdb_status status = _fdb_set(handle, doc, &decision);
+    if (status == FDB_RESULT_SUCCESS) {
+        func(handle, doc, ctx);
+    }
+    return status;
 }
 
 LIBFDB_API

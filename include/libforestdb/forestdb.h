@@ -314,6 +314,30 @@ fdb_status fdb_set(fdb_kvs_handle *handle,
                    fdb_doc *doc);
 
 /**
+ * Update the metadata and doc body for a given key, by by-passing the WAL.
+ * This API also requires a callback function that the caller needs to
+ * register along with some context, the callback is invoked only in case
+ * of updates, so that the caller will be able to differentiate between
+ * creates and updates.
+ *
+ * Note that FDB_DOC instance should be created by calling
+ * fdb_doc_create(doc, key, keylen, meta, metalen, body, bodylen) before using
+ * this API. Setting "deleted" flag in FDB_DOC instance to true is equivalent to
+ * calling fdb_del api described below.
+ *
+ * @param handle Pointer to ForestDB KV store handle.
+ * @param doc Pointer to ForestDB doc instance that is used to update a key.
+ * @param func The callback routine
+ * @param ctx Client context (passed to the callback).
+ * @return FDB_RESULT_SUCCESS on success.
+ */
+LIBFDB_API
+fdb_status fdb_set_ex(fdb_kvs_handle *handle,
+                      fdb_doc *doc,
+                      fdb_changes_callback_fn func,
+                      void *ctx);
+
+/**
  * Delete a key, its metadata and value
  * Note that FDB_DOC instance should be created by calling
  * fdb_doc_create(doc, key, keylen, meta, metalen, body, bodylen) before using
