@@ -61,6 +61,11 @@ fdb_status _fdb_commit(FdbKvsHandle *handle,
                        fdb_commit_opt_t opt,
                        bool sync);
 
+fdb_status _fdb_get_all_snap_markers_and_more(fdb_file_handle *fhandle,
+                                              fdb_snapshot_info_t **markers_out,
+                                              uint64_t *num_markers,
+                                              CommitHeaderStatsMap *header_map);
+
 fdb_status fdb_check_file_reopen(FdbKvsHandle *handle, file_status_t *status);
 void fdb_sync_db_header(FdbKvsHandle *handle);
 
@@ -128,7 +133,8 @@ void _fdb_kvs_header_import(KvsHeader *kv_header,
                             bool only_seq_nums);
 
 fdb_status _fdb_kvs_get_snap_info(void *data, uint64_t version,
-                                  fdb_snapshot_info_t *snap_info);
+                                  fdb_snapshot_info_t *snap_info,
+                                  CommitHeaderStatsMap *header_map);
 void _fdb_kvs_header_free(KvsHeader *kv_header);
 fdb_seqnum_t _fdb_kvs_get_seqnum(KvsHeader *kv_header,
                                  fdb_kvs_id_t id);

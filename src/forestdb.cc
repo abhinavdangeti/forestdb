@@ -7600,10 +7600,10 @@ fdb_status fdb_get_file_info(fdb_file_handle *fhandle, fdb_file_info *info)
     return FDB_RESULT_SUCCESS;
 }
 
-LIBFDB_API
-fdb_status fdb_get_all_snap_markers(fdb_file_handle *fhandle,
-                                    fdb_snapshot_info_t **markers_out,
-                                    uint64_t *num_markers)
+fdb_status _fdb_get_all_snap_markers_and_more(fdb_file_handle *fhandle,
+                                              fdb_snapshot_info_t **markers_out,
+                                              uint64_t *num_markers,
+                                              CommitHeaderStatsMap *header_map)
 {
     FdbKvsHandle *handle;
     bid_t hdr_bid;
@@ -7629,14 +7629,6 @@ fdb_status fdb_get_all_snap_markers(fdb_file_handle *fhandle,
     filemgr_header_revnum_t revnum;
     fdb_status status = FDB_RESULT_SUCCESS;
 
-    if (!fhandle) {
-        return FDB_RESULT_INVALID_HANDLE;
-    }
-
-    if (!markers_out || !num_markers) {
-        return FDB_RESULT_INVALID_ARGS;
-    }
-
     handle = fhandle->getRootHandle();
     if (!handle->file) {
         return FDB_RESULT_FILE_NOT_OPEN;
@@ -7650,10 +7642,14 @@ fdb_status fdb_get_all_snap_markers(fdb_file_handle *fhandle,
     if (!array_size) {
         return FDB_RESULT_NO_DB_INSTANCE;
     }
-    markers = (fdb_snapshot_info_t *)calloc(array_size, sizeof(fdb_snapshot_info_t));
-    if (!markers) { // LCOV_EXCL_START
-        return FDB_RESULT_ALLOC_FAIL;
-    } // LCOV_EXCL_STOP
+
+    if (markers_out) {
+        markers = (fdb_snapshot_info_t *)calloc(array_size,
+                                                sizeof(fdb_snapshot_info_t));
+        if (!markers) { // LCOV_EXCL_START
+            return FDB_RESULT_ALLOC_FAIL;
+        } // LCOV_EXCL_STOP
+    }
 
     // Start loading from current header
     seqnum = handle->seqnum;
@@ -7700,17 +7696,28 @@ fdb_status fdb_get_all_snap_markers(fdb_file_handle *fhandle,
                          &ndocs, &ndeletes, &nlivenodes, &datasize,
                          &last_wal_flush_hdr_bid, &kv_info_offset,
                          &header_flags, &compacted_filename, NULL);
-        markers[i].marker = (fdb_snapshot_marker_t)hdr_bid;
+        if (markers_out) {
+            markers[i].marker = (fdb_snapshot_marker_t)hdr_bid;
+        }
         if (kv_info_offset == BLK_NOT_FOUND) { // Single kv instance mode
-            markers[i].num_kvs_markers = 1;
-            markers[i].kvs_markers = (fdb_kvs_commit_marker_t *)malloc(
+            if (markers_out) {
+                markers[i].num_kvs_markers = 1;
+                markers[i].kvs_markers = (fdb_kvs_commit_marker_t *)malloc(
                                             sizeof(fdb_kvs_commit_marker_t));
-            if (!markers[i].kvs_markers) { // LCOV_EXCL_START
-                fdb_free_snap_markers(markers, i);
-                return FDB_RESULT_ALLOC_FAIL;
-            } // LCOV_EXCL_STOP
-            markers[i].kvs_markers->seqnum = seqnum;
-            markers[i].kvs_markers->kv_store_name = NULL;
+                if (!markers[i].kvs_markers) { // LCOV_EXCL_START
+                    fdb_free_snap_markers(markers, i);
+                    return FDB_RESULT_ALLOC_FAIL;
+                } // LCOV_EXCL_STOP
+                markers[i].kvs_markers->seqnum = seqnum;
+                markers[i].kvs_markers->kv_store_name = NULL;
+            }
+
+            if (header_map) {    // If header_map available, add entry
+                if (header_map->find("default") == header_map->end()) {
+                    (*header_map)["default"] = CommitHeaderStats();
+                }
+                (*header_map)["default"].push_back({seqnum, ndocs, ndeletes});
+            }
         } else { // Multi kv instance mode
             int64_t doc_offset;
             struct docio_object doc;
@@ -7718,40 +7725,87 @@ fdb_status fdb_get_all_snap_markers(fdb_file_handle *fhandle,
             doc_offset = handle->dhandle->readDoc_Docio(kv_info_offset, &doc,
                                                          true);
             if (doc_offset <= 0) {
-                fdb_free_snap_markers(markers, i);
+                if (markers_out) {
+                    fdb_free_snap_markers(markers, i);
+                }
                 return doc_offset < 0 ? (fdb_status) doc_offset : FDB_RESULT_READ_FAIL;
             }
-            status = _fdb_kvs_get_snap_info(doc.body, version,
-                                            &markers[i]);
+            if (markers_out) {
+                status = _fdb_kvs_get_snap_info(doc.body, version,
+                                                &markers[i], header_map);
+            } else {
+                status = _fdb_kvs_get_snap_info(doc.body, version,
+                                                NULL, header_map);
+            }
+
             if (status != FDB_RESULT_SUCCESS) { // LCOV_EXCL_START
-                fdb_free_snap_markers(markers, i);
+                if (markers_out) {
+                    fdb_free_snap_markers(markers, i);
+                }
                 return status;
             } // LCOV_EXCL_STOP
             if (seqnum) {
                 // default KVS has been used
                 // add the default KVS info
-                int idx = markers[i].num_kvs_markers - 1;
-                markers[i].kvs_markers[idx].seqnum = seqnum;
-                markers[i].kvs_markers[idx].kv_store_name = NULL;
+                if (markers_out) {
+                    int idx = markers[i].num_kvs_markers - 1;
+                    markers[i].kvs_markers[idx].seqnum = seqnum;
+                    markers[i].kvs_markers[idx].kv_store_name = NULL;
+                }
+
+                if (header_map) {    // If header_map available, add entry
+                    if (header_map->find("default") == header_map->end()) {
+                        (*header_map)["default"] = CommitHeaderStats();
+                    }
+                    (*header_map)["default"].push_back({seqnum, ndocs, ndeletes});
+                }
+
             } else {
                 // do not count default KVS .. decrease it by one.
-                markers[i].num_kvs_markers--;
+                if (markers_out) {
+                    markers[i].num_kvs_markers--;
+                }
             }
             free_docio_object(&doc, true, true, true);
         }
     }
 
-    *num_markers = size;
+    if (markers_out) {
+        *num_markers = size;
+    }
 
     if (size == 0) {
         // No Snap Markers found
-        fdb_free_snap_markers(markers, array_size);
+        if (markers_out) {
+            fdb_free_snap_markers(markers, array_size);
+        }
         return FDB_RESULT_NO_DB_INSTANCE;
     }
 
-    *markers_out = markers;
+    if (markers_out) {
+        *markers_out = markers;
+    }
 
     return status;
+}
+
+LIBFDB_API
+fdb_status fdb_get_all_snap_markers(fdb_file_handle *fhandle,
+                                    fdb_snapshot_info_t **markers_out,
+                                    uint64_t *num_markers)
+{
+    if (!fhandle) {
+        return FDB_RESULT_INVALID_HANDLE;
+    }
+
+    if (!markers_out || !num_markers) {
+        return FDB_RESULT_INVALID_ARGS;
+    }
+
+    return _fdb_get_all_snap_markers_and_more(fhandle,
+                                              markers_out,
+                                              num_markers,
+                                              NULL);
 }
 
 LIBFDB_API

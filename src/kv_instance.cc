@@ -38,6 +38,8 @@
 #include "timing.h"
 #include "time_utils.h"
 
+#include <vector>
+
 static const char *default_kvs_name = DEFAULT_KVS_NAME;
 
 
@@ -658,7 +660,8 @@ void _fdb_kvs_header_import(KvsHeader *kv_header,
 }
 
 fdb_status _fdb_kvs_get_snap_info(void *data, uint64_t version,
-                                  fdb_snapshot_info_t *snap_info)
+                                  fdb_snapshot_info_t *snap_info,
+                                  CommitHeaderStatsMap *header_map)
 {
     int i, offset = 0, sizeof_skipped_segments;
     uint16_t name_len, _name_len;
@@ -673,18 +676,22 @@ fdb_status _fdb_kvs_get_snap_info(void *data, uint64_t version,
     }
 
     // # KV instances
-    memcpy(&_n_kv, (uint8_t*)data + offset, sizeof(_n_kv));
+    if (snap_info) {
+        memcpy(&_n_kv, (uint8_t*)data + offset, sizeof(_n_kv));
+    }
     offset += sizeof(_n_kv);
     // since n_kv doesn't count the default KVS, increase it by 1.
     n_kv = _endian_decode(_n_kv) + 1;
     assert(n_kv); // Must have at least one kv instance
-    snap_info->kvs_markers = (fdb_kvs_commit_marker_t *)malloc(
-                                   (n_kv) * sizeof(fdb_kvs_commit_marker_t));
-    if (!snap_info->kvs_markers) { // LCOV_EXCL_START
-        return FDB_RESULT_ALLOC_FAIL;
-    } // LCOV_EXCL_STOP
+    if (snap_info) {
+        snap_info->kvs_markers = (fdb_kvs_commit_marker_t *)malloc(
+                               (n_kv) * sizeof(fdb_kvs_commit_marker_t));
+        if (!snap_info->kvs_markers) { // LCOV_EXCL_START
+            return FDB_RESULT_ALLOC_FAIL;
+        } // LCOV_EXCL_STOP
 
-    snap_info->num_kvs_markers = n_kv;
+        snap_info->num_kvs_markers = n_kv;
+    }
 
     // Skip over ID counter
     offset += sizeof(fdb_kvs_id_t);
@@ -700,15 +707,22 @@ fdb_status _fdb_kvs_get_snap_info(void *data, uint64_t version,
     }
 
     for (i = 0; i < n_kv-1; ++i){
-        fdb_kvs_commit_marker_t *info = &snap_info->kvs_markers[i];
+        fdb_kvs_commit_marker_t *info;
+        if (snap_info) {
+            info = &snap_info->kvs_markers[i];
+        }
         // Read the kv store name length
         memcpy(&_name_len, (uint8_t*)data + offset, sizeof(_name_len));
         offset += sizeof(_name_len);
         name_len = _endian_decode(_name_len);
 
         // Retrieve the KV Store name
-        info->kv_store_name = (char *)malloc(name_len); // TODO: cleanup if err
-        memcpy(info->kv_store_name, (uint8_t*)data + offset, name_len);
+        std::string kvStoreName(std::string((char*)data + offset, name_len));
+
+        if (snap_info) {
+            info->kv_store_name = (char *)malloc(name_len); // TODO: cleanup if err
+            memcpy(info->kv_store_name, (uint8_t*)data + offset, name_len);
+        }
         offset += name_len;
 
         // Skip over KV ID
@@ -716,7 +730,30 @@ fdb_status _fdb_kvs_get_snap_info(void *data, uint64_t version,
 
         // Retrieve the KV Store Commit Sequence number
         memcpy(&_seqnum, (uint8_t*)data + offset, sizeof(_seqnum));
-        info->seqnum = _endian_decode(_seqnum);
+        _seqnum = _endian_decode(_seqnum);
+        if (snap_info) {
+            info->seqnum = _seqnum;
+        }
+
+        // If header_map is available add to it seqnum, doc_count and deleted count
+        if (header_map) {
+            const char* _kvStoreName = kvStoreName.c_str();
+            size_t _ndocs = 0, _ndeletes = 0, _skip = 0;
+            _skip = offset + (2 * sizeof(uint64_t) /* seqnum, nlivenodes */);
+            memcpy(&_ndocs, (uint8_t*)data + _skip, sizeof(_ndocs));
+            _ndocs = _endian_decode(_ndocs);
+            if (is_deltasize) {
+                _skip += (4 * sizeof(uint64_t) /*ndocs, datasize,
+                                                 flags, deltasize*/);
+                memcpy(&_ndeletes, (uint8_t*)data + _skip, sizeof(_ndeletes));
+                _ndeletes = _endian_decode(_ndeletes);
+            }
+            fprintf(stderr, "--> %s: %llu, %zu, %zu;\n", _kvStoreName, _seqnum, _ndocs, _ndeletes);
+            if (header_map->find(_kvStoreName) == header_map->end()) {
+                (*header_map)[_kvStoreName] = CommitHeaderStats();
+            }
+            (*header_map)[_kvStoreName].push_back({_seqnum, _ndocs, _ndeletes});
+        }
 
         // Skip over seqnum, nlivenodes, ndocs, datasize, flags etc onto next..
         offset += sizeof_skipped_segments;
@@ -2321,3 +2358,98 @@ stale_header_info fdb_get_smallest_active_header(FdbKvsHandle *handle)
     return ret;
 }
 
+static fdb_status _fetch_commit_header_stats(fdb_kvs_handle *handle,
+                                             std::vector<commit_header_stats_t> *headers)
+{
+    if (!handle) {
+        return FDB_RESULT_INVALID_HANDLE;
+    } else if (!handle->file) {
+        return FDB_RESULT_FILE_NOT_OPEN;
+    }
+
+    if (!headers) {
+        return FDB_RESULT_INVALID_ARGS;
+    }
+
+    fdb_status status = FDB_RESULT_SUCCESS;
+
+    CommitHeaderStatsMap header_map;
+
+    status = _fdb_get_all_snap_markers_and_more(handle->fhandle, NULL, NULL,
+                                                &header_map);
+    if (status != FDB_RESULT_SUCCESS) {
+        // No markers available / Allocation failure perhaps
+        return status;
+    }
+
+    const char *kvs_name = _fdb_kvs_get_name(handle, handle->file);
+
+    CommitHeaderStatsMap::iterator itr = header_map.begin();
+    for (; itr != header_map.end(); ++itr) {
+        fprintf(stderr, "%s: ", itr->first);
+        for (auto &v : itr->second) {
+            fprintf(stderr, "%zu; %zu; %zu.\n", v.seqnum, v.doc_count, v.deleted_count);
+        }
+    }
+
+    if (header_map.find(kvs_name) == header_map.end()) {
+        fprintf(stderr, "FUCKED\n");
+    } else {
+        *headers = header_map[kvs_name];
+        fprintf(stderr, "SIZE: %zu, %zu\n", header_map.size(), header_map[kvs_name].size());
+    }
+
+    /*
+    for (uint64_t i = 0; i < marker_count; ++i) {
+        commit_header_stats_t h_stats = {0, 0, 0};
+        for (int64_t j = 0; j < markers[i].num_kvs_markers; ++j) {
+            if (kvs_name == NULL) { // Default KVS
+                if (markers[j].kvs_markers[j].kv_store_name == NULL) {
+                    h_stats.seqnum = markers[i].kvs_markers[j].seqnum;
+                    break;
+                }
+            } else if (strcmp(kvs_name,
+                              markers[i].kvs_markers[j].kv_store_name) == 0) {
+                h_stats.seqnum = markers[i].kvs_markers[j].seqnum;
+                break;
+            }
+        }
+        headers->push_back(h_stats);
+    }
+    */
+
+    return status;
+}
+
+LIBFDB_API
+fdb_status fdb_changes_count(fdb_kvs_handle *handle,
+                             const fdb_seqnum_t min_seq,
+                             const fdb_seqnum_t max_seq,
+                             uint64_t *count)
+{
+    if (!handle) {
+        return FDB_RESULT_INVALID_HANDLE;
+    } else if (!handle->file) {
+        return FDB_RESULT_FILE_NOT_OPEN;
+    }
+
+    if (min_seq == max_seq) {
+        // Avoid unnecessary fetching of snapshot markers
+        *count = 0;
+        return FDB_RESULT_SUCCESS;
+    }
+
+    fdb_status status = FDB_RESULT_SUCCESS;
+
+    std::vector<commit_header_stats_t> headerStats;
+    status = _fetch_commit_header_stats(handle, &headerStats);
+    if (status != FDB_RESULT_SUCCESS) {
+        return status;
+    }
+
+    for (auto &it : headerStats) {
+        fprintf(stderr, "\n%zu, %zu, %zu\n", it.seqnum, it.doc_count, it.deleted_count);
+    }
+
+    return FDB_RESULT_SUCCESS;
+}

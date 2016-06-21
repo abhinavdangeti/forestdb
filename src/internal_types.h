@@ -15,8 +15,7 @@
  *   limitations under the License.
  */
 
-#ifndef _INTERNAL_TYPES_H
-#define _INTERNAL_TYPES_H
+#pragma once
 
 #include <stdint.h>
 
@@ -26,9 +25,8 @@
 #include "avltree.h"
 #include "list.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <map>
+#include <vector>
 
 struct btree;
 class FileMgr;
@@ -484,12 +482,27 @@ struct stale_regions {
     };
 };
 
+/**
+ * Structure for certain stats that can be obtained from the commit header
+ */
+struct commit_header_stats_t {
+    /*
+     * End sequence number
+     */
+    size_t seqnum;
+    /*
+     * Document count
+     */
+    size_t doc_count;
+    /*
+     * Deleted doc count
+     */
+    size_t deleted_count;
+};
+
+typedef std::vector<commit_header_stats_t>       CommitHeaderStats;
+typedef std::map<const char*, CommitHeaderStats> CommitHeaderStatsMap;
+
 #define FDB_FLAG_SEQTREE_USE (0x1)
 #define FDB_FLAG_ROOT_INITIALIZED (0x2)
 #define FDB_FLAG_ROOT_CUSTOM_CMP (0x4)
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif
