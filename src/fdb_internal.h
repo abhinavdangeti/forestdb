@@ -15,8 +15,7 @@
  *   limitations under the License.
  */
 
-#ifndef _FDB_INTERNAL_H
-#define _FDB_INTERNAL_H
+#pragma once
 
 #include <stdint.h>
 #include "common.h"
@@ -28,9 +27,7 @@
 #include "staleblock.h"
 #include "kvs_handle.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <vector>
 
 /* If non-NULL, callback invoked when handling a fatal error. */
 extern fdb_fatal_error_callback fatal_error_callback;
@@ -129,6 +126,10 @@ void _fdb_kvs_header_import(KvsHeader *kv_header,
 
 fdb_status _fdb_kvs_get_snap_info(void *data, uint64_t version,
                                   fdb_snapshot_info_t *snap_info);
+fdb_status _fdb_kvs_get_commit_header_stats(void *data, uint64_t version,
+                                            const char *kvs_name,
+                                            commit_header_stats_t *stats);
+
 void _fdb_kvs_header_free(KvsHeader *kv_header);
 fdb_seqnum_t _fdb_kvs_get_seqnum(KvsHeader *kv_header,
                                  fdb_kvs_id_t id);
@@ -176,6 +177,17 @@ fdb_status fdb_kvs_rollback(FdbKvsHandle **handle_ptr, fdb_seqnum_t seqnum);
  * @return Header revision number and block ID.
  */
 stale_header_info fdb_get_smallest_active_header(FdbKvsHandle *handle);
+
+/**
+ * Fetches certain stats from every commit header of the kvs instance
+ * pointed to by the handle.
+ *
+ * @param handle Pointer to ForestDB KV store instance.
+ * @param headerStats Pointer to the vector of commit header's stats
+ * @return FDB_RESULT_SUCCESS on success.
+ */
+fdb_status fetch_commit_header_stats(fdb_kvs_handle *handle,
+                                     std::vector<commit_header_stats_t> *headerStats);
 
 INLINE size_t _fdb_get_docsize(struct docio_length len)
 {
@@ -305,9 +317,3 @@ INLINE void _fdb_dirty_update_finalize(FdbKvsHandle *handle,
         handle->bhandle->discardBlocks();
     }
 }
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif

@@ -416,8 +416,9 @@ static void _fdb_kvs_header_export(KvsHeader *kv_header,
      *    Please note that if the above format is changed, please also change...
      *    _fdb_kvs_get_snap_info()
      *    _fdb_kvs_header_import()
+     *    _fdb_kvs_get_commit_header_stats()
      *    _kvs_stat_get_sum_doc()
-     *    _kvs_stat_get_sum_attr
+     *    _kvs_stat_get_sum_attr()
      */
 
     int size = 0;
@@ -720,6 +721,95 @@ fdb_status _fdb_kvs_get_snap_info(void *data, uint64_t version,
 
         // Skip over seqnum, nlivenodes, ndocs, datasize, flags etc onto next..
         offset += sizeof_skipped_segments;
+    }
+
+    return FDB_RESULT_SUCCESS;
+}
+
+fdb_status _fdb_kvs_get_commit_header_stats(void *data, uint64_t version,
+                                            const char* kvs_name,
+                                            commit_header_stats_t *stats)
+{
+    int i, offset = 0, sizeof_remaining_segments;
+    uint16_t name_len, _name_len;
+    int64_t n_kv, _n_kv;
+    bool is_deltasize;
+    // Version control
+    if (!ver_is_atleast_magic_001(version)) {
+        is_deltasize = false;
+    } else {
+        is_deltasize = true;
+    }
+
+    // # KV instances
+    memcpy(&_n_kv, (uint8_t*)data + offset, sizeof(_n_kv));
+    offset += sizeof(_n_kv);
+    // since n_kv doesn't count the default KVS, increase it by 1.
+    n_kv = _endian_decode(_n_kv) + 1;
+    assert(n_kv); // Must have at least one kv instance
+
+    // Skip over ID counter
+    offset += sizeof(fdb_kvs_id_t);
+
+    sizeof_remaining_segments = sizeof(uint64_t) // seqnum will be the last read
+                                + sizeof(uint64_t) // skip over nlivenodes
+                                + sizeof(uint64_t) // ndocs will be read
+                                + sizeof(uint64_t) // skip over datasize
+                                + sizeof(uint64_t); // skip over flags
+    if (is_deltasize) {
+        sizeof_remaining_segments += sizeof(uint64_t); // skip over deltasize
+        sizeof_remaining_segments += sizeof(uint64_t); // ndeletes will be read
+    }
+
+    for (i = 0; i < n_kv-1; ++i){
+        // Read the kv store name length
+        memcpy(&_name_len, (uint8_t*)data + offset, sizeof(_name_len));
+        offset += sizeof(_name_len);
+        name_len = _endian_decode(_name_len);
+
+        // Retrieve the KV Store name
+        std::string kv_store_name(std::string((char*)((uint8_t*)data + offset),
+                                              name_len));
+        offset += name_len;
+
+        // Skip over KV ID
+        offset += sizeof(uint64_t);
+
+        if (strcmp(kvs_name, kv_store_name.c_str()) != 0) {
+            // Not the right kv store,
+            // Skip over seqnum, nlivenodes, ndocs, datasize, flags etc onto next..
+            offset += sizeof_remaining_segments;
+        } else {
+            fdb_seqnum_t _seqnum;
+            size_t _ndocs, _ndeletes;
+            // Retrieve the KV Store Commit Sequence number
+            memcpy(&_seqnum, (uint8_t*)data + offset, sizeof(_seqnum));
+            _seqnum = _endian_decode(_seqnum);
+
+            // Move past seqnum and skip over number of live index nodes
+            offset += sizeof(_seqnum) + sizeof(uint64_t);
+
+            memcpy(&_ndocs, (uint8_t*)data + offset, sizeof(_ndocs));
+            _ndocs = _endian_decode(_ndocs);
+
+            // Move past ndocs and skip over datasize, flags
+            offset += sizeof(_ndocs) + sizeof(uint64_t) + sizeof(uint64_t);
+
+            if (is_deltasize) {
+                // Skip over datasize
+                offset += sizeof(uint64_t);
+
+                memcpy(&_ndeletes, (uint8_t*)data + offset, sizeof(_ndeletes));
+                _ndeletes = _endian_decode(_ndeletes);
+            } else {
+                _ndeletes = 0;
+            }
+
+            stats->seqnum = _seqnum;
+            stats->doc_count = _ndocs;
+            stats->deleted_count = _ndeletes;
+            break;
+        }
     }
 
     return FDB_RESULT_SUCCESS;
@@ -2333,3 +2423,169 @@ stale_header_info fdb_get_smallest_active_header(FdbKvsHandle *handle)
     return ret;
 }
 
+fdb_status fetch_commit_header_stats(fdb_kvs_handle *handle,
+                                     std::vector<commit_header_stats_t> *headerStats) {
+    if (!handle) {
+        return FDB_RESULT_INVALID_HANDLE;
+    } else if (!handle->file) {
+        return FDB_RESULT_FILE_NOT_OPEN;
+    }
+
+    if (!headerStats) {
+        return FDB_RESULT_INVALID_ARGS;
+    }
+
+    file_status_t fMgrStatus;
+    fdb_status status = FDB_RESULT_SUCCESS;
+
+    fdb_check_file_reopen(handle, &fMgrStatus);
+    fdb_sync_db_header(handle);
+
+    // Fetch the kvs instance's name
+    const char *kvs_name = _fdb_kvs_get_name(handle, handle->file);
+
+    SuperblockBase *sb = handle->file->getSb();
+    uint64_t sb_min_live_revnum = sb ? sb->getMinLiveHdrRevnum() : 0;
+
+    // There are as many DB headers in a file as the file's header revision num
+    uint64_t array_size = handle->cur_header_revnum - sb_min_live_revnum;
+    if (!array_size) {
+        return FDB_RESULT_NO_DB_INSTANCE;
+    }
+    std::vector<commit_header_stats_t> header_stats;
+
+    bid_t hdr_bid;
+    size_t header_len;
+    uint8_t header_buf[FDB_BLOCKSIZE];
+    bid_t trie_root_bid = BLK_NOT_FOUND;
+    bid_t seq_root_bid = BLK_NOT_FOUND;
+    bid_t stale_root_bid = BLK_NOT_FOUND;
+    uint64_t ndocs;
+    uint64_t ndeletes;
+    uint64_t nlivenodes;
+    uint64_t datasize;
+    uint64_t last_wal_flush_hdr_bid;
+    uint64_t kv_info_offset;
+    uint64_t header_flags;
+    uint64_t version;
+    char *compacted_filename;
+    fdb_seqnum_t seqnum;
+    filemgr_header_revnum_t revnum;
+    uint64_t size = 0;
+
+    // Start loading from current header
+    seqnum = handle->seqnum;
+    hdr_bid = handle->last_hdr_bid;
+    header_len = handle->file->accessHeader()->size;
+
+    uint64_t num_keeping_headers =
+                            handle->file->getConfig()->getNumKeepingHeaders();
+
+    // Reverse scan the file to locate the DB header with seqnum marker
+    for (size_t i = 0; header_len; ++i, ++size) {
+        if (handle->config.block_reusing_threshold > 0 &&
+            handle->config.block_reusing_threshold < 100 &&
+            size >= num_keeping_headers) {
+            // if block reuse is enabled,
+            // do not allow to scan beyond the config parameter
+            break;
+        }
+
+        if (i == 0) {
+            status = handle->file->fetchHeader(handle->last_hdr_bid,
+                                               header_buf, &header_len, NULL,
+                                               &revnum, NULL, &version, NULL,
+                                               &handle->log_callback);
+        } else {
+            if ((uint64_t)i >= array_size) {
+                break;
+            }
+            hdr_bid = handle->file->fetchPrevHeader(hdr_bid, header_buf,
+                                                    &header_len, &seqnum,
+                                                    &revnum, NULL, &version,
+                                                    NULL, &handle->log_callback);
+        }
+        if (header_len == 0) {
+            break; // header doesn't exist, terminate iteration
+        }
+        if (ver_superblock_support(version) &&
+            revnum < sb_min_live_revnum) {
+            break; // earlier than the last block reclaiming
+        }
+
+        fdb_fetch_header(version, header_buf,
+                         &trie_root_bid, &seq_root_bid, &stale_root_bid,
+                         &ndocs, &ndeletes, &nlivenodes, &datasize,
+                         &last_wal_flush_hdr_bid, &kv_info_offset,
+                         &header_flags, &compacted_filename, NULL);
+
+        if (kv_info_offset == BLK_NOT_FOUND) {  // Single KV instance mode
+            header_stats.push_back({seqnum, ndocs, ndeletes});
+        } else {    // Multi KV instance mode
+            if (kvs_name == NULL) { // Default KVS
+                header_stats.push_back({seqnum, ndocs, ndeletes});
+            } else {
+                int64_t doc_offset;
+                struct docio_object doc;
+                memset(&doc, 0, sizeof(struct docio_object));
+                doc_offset = handle->dhandle->readDoc_Docio(kv_info_offset, &doc,
+                                                            true);
+                if (doc_offset <= 0) {
+                    return doc_offset < 0 ? (fdb_status) doc_offset
+                                          : FDB_RESULT_READ_FAIL;
+                }
+                commit_header_stats_t stat;
+                status = _fdb_kvs_get_commit_header_stats(doc.body, version,
+                                                          kvs_name, &stat);
+                if (status != FDB_RESULT_SUCCESS) {
+                    return status;
+                } else {
+                    header_stats.push_back(stat);
+                }
+                free_docio_object(&doc, true, true, true);
+            }
+        }
+    }
+
+    if (size == 0) {
+        // No commit headers found
+        return FDB_RESULT_NO_DB_INSTANCE;
+    }
+
+    *headerStats = header_stats;
+
+    return FDB_RESULT_SUCCESS;
+}
+
+LIBFDB_API
+fdb_status fdb_changes_count(fdb_kvs_handle *handle,
+                             const fdb_seqnum_t min_seq,
+                             const fdb_seqnum_t max_seq,
+                             uint64_t *count)
+{
+    if (!handle) {
+        return FDB_RESULT_INVALID_HANDLE;
+    } else if (!handle->file) {
+        return FDB_RESULT_FILE_NOT_OPEN;
+    }
+
+    if (min_seq == max_seq) {
+        // Avoid unnecessary fetching of commit headers
+        *count = 0;
+        return FDB_RESULT_SUCCESS;
+    }
+
+    std::vector<commit_header_stats_t> headerStats;
+    fdb_status status = fetch_commit_header_stats(handle, &headerStats);
+    if (status != FDB_RESULT_SUCCESS) {
+        return status;
+    }
+
+    fprintf(stderr, "VECTOR SIZE: %lu\n", headerStats.size());
+    for (auto &i : headerStats) {
+        fprintf(stderr, "(%llu %zu %zu)\n", i.seqnum, i.doc_count, i.deleted_count);
+    }
+
+    // TODO
+    return FDB_RESULT_SUCCESS;
+}

@@ -625,6 +625,22 @@ fdb_status fdb_changes_since(fdb_kvs_handle *handle,
                              void *ctx);
 
 /**
+ * Returns the approximate changes count between 2 sequence numbers for a
+ * kvs handle.
+ *
+ * @param handle Pointer to ForestDB KV store instance.
+ * @param min_seq Smallest document sequence number.
+ * @param max_seq Largest document sequence number.
+ * @param count Pointer to the changes count.
+ * @return FDB_RESULT_SUCCESS on success.
+ */
+LIBFDB_API
+fdb_status fdb_changes_count(fdb_kvs_handle *handle,
+                             const fdb_seqnum_t min_seq,
+                             const fdb_seqnum_t max_seq,
+                             uint64_t *count);
+
+/**
  * Compact the current file and create a new compacted file.
  * Note that a new file name passed to this API will be ignored if the compaction
  * mode of the handle is auto-compaction (i.e., FDB_COMPACTION_AUTO). In the auto

@@ -484,6 +484,25 @@ struct stale_regions {
     };
 };
 
+/**
+ * Structure for stats obtained from a commit header for
+ * a KV store instance.
+ */
+struct commit_header_stats_t {
+    /**
+     * End sequence number
+     */
+    fdb_seqnum_t seqnum;
+    /**
+     * Doc count
+     */
+    size_t doc_count;
+    /**
+     * Deleted doc count
+     */
+    size_t deleted_count;
+};
+
 #define FDB_FLAG_SEQTREE_USE (0x1)
 #define FDB_FLAG_ROOT_INITIALIZED (0x2)
 #define FDB_FLAG_ROOT_CUSTOM_CMP (0x4)

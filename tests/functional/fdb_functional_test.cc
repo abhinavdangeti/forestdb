@@ -5170,7 +5170,107 @@ void kvs_deletion_without_commit()
     TEST_RESULT("KVS deletion without commit test");
 }
 
+void changes_count_test(const char *kvs) {
+    TEST_INIT();
+    memleak_start();
+
+    int r, n = 30;
+    fdb_status status;
+    fdb_file_handle *dbfile;
+    fdb_kvs_handle *db;
+    fdb_config fconfig = fdb_get_default_config();
+    fconfig.seqtree_opt = FDB_SEQTREE_USE; // enable seqtree since get_byseq
+
+    fdb_kvs_config kvs_config = fdb_get_default_kvs_config();
+
+    r = system(SHELL_DEL" dummy* > errorlog.txt");
+    (void)r;
+
+    status = fdb_init(&fconfig);
+    TEST_CHK(status == FDB_RESULT_SUCCESS);
+
+    status = fdb_open(&dbfile, "./dummy1", &fconfig);
+    TEST_CHK(status == FDB_RESULT_SUCCESS);
+    if (kvs) {
+        status = fdb_kvs_open(dbfile, &db, kvs, &kvs_config);
+    } else {
+        // Default kv store
+        status = fdb_kvs_open_default(dbfile, &db, &kvs_config);
+    }
+    TEST_CHK(status == FDB_RESULT_SUCCESS);
+
+    char keybuf[64], metabuf[64], bodybuf[64];
+    fdb_doc *rdoc = NULL;
+
+    // Write n new items
+    for (int i = 1; i <= n; ++i) {
+        sprintf(keybuf, "key%d", i);
+        sprintf(metabuf, "meta%d", i);
+        sprintf(bodybuf, "body%d", i);
+        fdb_doc_create(&rdoc,
+                       (void*)keybuf, strlen(keybuf),
+                       (void*)metabuf, strlen(metabuf),
+                       (void*)bodybuf, strlen(bodybuf));
+        fdb_set(db, rdoc);
+        fdb_doc_free(rdoc);
+    }
+
+    // Update first n/2 items - DeDup in WAL
+    for (int i = 1; i <= n/2; ++i) {
+        sprintf(keybuf, "key%d", i);
+        sprintf(metabuf, "meta-1%d", i);
+        sprintf(bodybuf, "body-1%d", i);
+        fdb_doc_create(&rdoc,
+                       (void*)keybuf, strlen(keybuf),
+                       (void*)metabuf, strlen(metabuf),
+                       (void*)bodybuf, strlen(bodybuf));
+        fdb_set(db, rdoc);
+        fdb_doc_free(rdoc);
+    }
+
+    // Commit
+    status = fdb_commit(dbfile, FDB_COMMIT_MANUAL_WAL_FLUSH);
+    TEST_CHK(status == FDB_RESULT_SUCCESS);
+
+    // Update last n/2 items
+    for (int i = n/2 + 1; i <= n; ++i) {
+        sprintf(keybuf, "key%d", i);
+        sprintf(metabuf, "meta-2%d", i);
+        sprintf(bodybuf, "body-2%d", i);
+        fdb_doc_create(&rdoc,
+                       (void*)keybuf, strlen(keybuf),
+                       (void*)metabuf, strlen(metabuf),
+                       (void*)bodybuf, strlen(bodybuf));
+        fdb_set(db, rdoc);
+        fdb_doc_free(rdoc);
+    }
+
+    // Commit again
+    status = fdb_commit(dbfile, FDB_COMMIT_MANUAL_WAL_FLUSH);
+    TEST_CHK(status == FDB_RESULT_SUCCESS);
+
+    uint64_t high_seq = /*Initial creates*/n +
+                        /*First set of updates*/n/2 +
+                        /*Second set of updates*/n/2;
+    uint64_t count = 0;
+    status = fdb_changes_count(db, 1, high_seq, &count);
+    TEST_CHK(status == FDB_RESULT_SUCCESS);
+
+    //TEST_CHK(count == n);   // Accounting for de-duped items
+
+    fdb_kvs_close(db);
+    fdb_close(dbfile);
+
+    fdb_shutdown();
+
+    memleak_end();
+    TEST_RESULT("test fdb_changes_count api");
+}
+
 int main(){
+    changes_count_test("kvs");
+    return 1;
+
     basic_test();
     init_test();
     set_get_max_keylen();
@@ -5231,6 +5331,8 @@ int main(){
     available_rollback_seqno_test("kvs");
     changes_since_test(NULL);
     changes_since_test("kvs");
+    changes_count_test(NULL);
+    changes_count_test("kvs");
 
     return 0;
 }
