@@ -8,7 +8,7 @@ add_executable(fdb_microbench
 target_link_libraries(fdb_microbench ${PTHREAD_LIB} ${LIBM}
                       ${SNAPPY_LIBRARIES} ${ASYNC_IO_LIB}
                       ${MALLOC_LIBRARIES} ${PLATFORM_LIBRARY}
-                      ${LIBRT} ${CRYPTO_LIB}
+                      ${LIBRT} ${CRYPTO_LIB} ${PHOSPHOR_LIBRARY}
                       ${DL_LIBRARIES} ${BREAKPAD_LIBRARIES})
 set_target_properties(fdb_microbench PROPERTIES COMPILE_FLAGS "-D_FDB_TOOLS")
 

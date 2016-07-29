@@ -8,7 +8,7 @@ add_executable(hash_test
                ${ROOT_UTILS}/memleak.cc
                ${ROOT_UTILS}/time_utils.cc)
 target_link_libraries(hash_test ${PTHREAD_LIB} ${LIBM} ${MALLOC_LIBRARIES}
-                      ${PLATFORM_LIBRARY} ${LIBRT})
+                      ${PLATFORM_LIBRARY} ${LIBRT} ${PHOSPHOR_LIBRARY})
 
 add_executable(mempool_test
                mempool_test.cc
@@ -51,7 +51,7 @@ add_executable(bcache_test
 target_link_libraries(bcache_test ${PTHREAD_LIB} ${LIBM}
                       ${ASYNC_IO_LIB} ${MALLOC_LIBRARIES}
                       ${PLATFORM_LIBRARY} ${LIBRT} ${CRYPTO_LIB}
-                      ${DL_LIBRARIES} ${BREAKPAD_LIBRARIES})
+                      ${PHOSPHOR_LIBRARY} ${DL_LIBRARIES} ${BREAKPAD_LIBRARIES})
 set_target_properties(bcache_test PROPERTIES COMPILE_FLAGS "${CB_GNU_CXX11_OPTION}")
 
 add_executable(filemgr_test
@@ -81,7 +81,7 @@ add_executable(filemgr_test
 target_link_libraries(filemgr_test ${PTHREAD_LIB} ${LIBM}
                       ${ASYNC_IO_LIB} ${MALLOC_LIBRARIES}
                       ${PLATFORM_LIBRARY} ${LIBRT} ${CRYPTO_LIB}
-                      ${DL_LIBRARIES} ${BREAKPAD_LIBRARIES})
+                      ${PHOSPHOR_LIBRARY} ${DL_LIBRARIES} ${BREAKPAD_LIBRARIES})
 set_target_properties(filemgr_test PROPERTIES COMPILE_FLAGS "${CB_GNU_CXX11_OPTION}")
 
 add_executable(btreeblock_test
@@ -114,7 +114,7 @@ add_executable(btreeblock_test
 target_link_libraries(btreeblock_test ${PTHREAD_LIB} ${LIBM}
                       ${ASYNC_IO_LIB} ${MALLOC_LIBRARIES}
                       ${PLATFORM_LIBRARY} ${LIBRT} ${CRYPTO_LIB}
-                      ${DL_LIBRARIES} ${BREAKPAD_LIBRARIES})
+                      ${PHOSPHOR_LIBRARY} ${DL_LIBRARIES} ${BREAKPAD_LIBRARIES})
 set_target_properties(btreeblock_test PROPERTIES COMPILE_FLAGS "${CB_GNU_CXX11_OPTION}")
 
 add_executable(docio_test
@@ -145,7 +145,7 @@ add_executable(docio_test
 target_link_libraries(docio_test ${PTHREAD_LIB} ${LIBM} ${SNAPPY_LIBRARIES}
                       ${ASYNC_IO_LIB} ${MALLOC_LIBRARIES}
                       ${PLATFORM_LIBRARY} ${LIBRT} ${CRYPTO_LIB}
-                      ${DL_LIBRARIES} ${BREAKPAD_LIBRARIES})
+                      ${PHOSPHOR_LIBRARY} ${DL_LIBRARIES} ${BREAKPAD_LIBRARIES})
 set_target_properties(docio_test PROPERTIES COMPILE_FLAGS "${CB_GNU_CXX11_OPTION}")
 
 add_executable(hbtrie_test
@@ -182,7 +182,7 @@ add_executable(hbtrie_test
 target_link_libraries(hbtrie_test ${PTHREAD_LIB} ${LIBM} ${SNAPPY_LIBRARIES}
                       ${ASYNC_IO_LIB} ${MALLOC_LIBRARIES}
                       ${PLATFORM_LIBRARY} ${LIBRT} ${CRYPTO_LIB}
-                      ${DL_LIBRARIES} ${BREAKPAD_LIBRARIES})
+                      ${PHOSPHOR_LIBRARY} ${DL_LIBRARIES} ${BREAKPAD_LIBRARIES})
 set_target_properties(hbtrie_test PROPERTIES COMPILE_FLAGS "${CB_GNU_CXX11_OPTION}")
 
 add_executable(btree_kv_test
@@ -193,7 +193,7 @@ add_executable(btree_kv_test
                ${ROOT_UTILS}/memleak.cc
                ${ROOT_UTILS}/time_utils.cc)
 target_link_libraries(btree_kv_test ${LIBM} ${MALLOC_LIBRARIES}
-                      ${PLATFORM_LIBRARY} ${LIBRT})
+                      ${PLATFORM_LIBRARY} ${LIBRT} ${PHOSPHOR_LIBRARY})
 
 # add test target
 add_test(hash_test hash_test)

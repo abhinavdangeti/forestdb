@@ -130,6 +130,11 @@ IF (COUCHBASE_SERVER_BUILD)
     INCLUDE_DIRECTORIES(BEFORE ${Platform_SOURCE_DIR}/include)
     SET(PLATFORM_LIBRARY platform)
     ADD_DEFINITIONS(-D_PLATFORM_LIB_AVAILABLE)
+
+    # Include phosphor (tracing lib) directory for Couchbase Server Builds
+    INCLUDE_DIRECTORIES(BEFORE ${phosphor_SOURCE_DIR}/include)
+    SET(PHOSPHOR_LIBRARY phosphor)
+    ADD_DEFINITIONS(-D_PHOSPHOR_LIB_AVAILABLE)
 ENDIF()
 
 # Comment the line below to disable compiling Copy-On-Write (COW) optimizations
@@ -243,7 +248,7 @@ add_library(forestdb SHARED
             ${FORESTDB_UTILS_SRC})
 target_link_libraries(forestdb ${PTHREAD_LIB} ${LIBM} ${SNAPPY_LIBRARIES}
                       ${ASYNC_IO_LIB} ${MALLOC_LIBRARIES} ${PLATFORM_LIBRARY}
-                      ${LIBRT} ${CRYPTO_LIB}
+                      ${LIBRT} ${CRYPTO_LIB} ${PHOSPHOR_LIBRARY}
                       ${DL_LIBRARIES} ${BREAKPAD_LIBRARIES})
 
 # Create objects libraries for the different "tools" parts forestdb, which can be reused
@@ -263,7 +268,7 @@ add_executable(forestdb_dump
                $<TARGET_OBJECTS:FDB_TOOLS_UTILS>)
 target_link_libraries(forestdb_dump ${PTHREAD_LIB} ${LIBM} ${SNAPPY_LIBRARIES}
                       ${ASYNC_IO_LIB} ${MALLOC_LIBRARIES} ${PLATFORM_LIBRARY}
-                      ${LIBRT} ${CRYPTO_LIB}
+                      ${LIBRT} ${CRYPTO_LIB} ${PHOSPHOR_LIBRARY}
                       ${DL_LIBRARIES} ${BREAKPAD_LIBRARIES})
 set_target_properties(forestdb_dump PROPERTIES COMPILE_FLAGS "-D_FDB_TOOLS")
 
@@ -276,7 +281,7 @@ add_executable(forestdb_hexamine
                $<TARGET_OBJECTS:FDB_TOOLS_UTILS>)
 target_link_libraries(forestdb_hexamine ${PTHREAD_LIB} ${LIBM} ${SNAPPY_LIBRARIES}
                       ${ASYNC_IO_LIB} ${MALLOC_LIBRARIES} ${PLATFORM_LIBRARY}
-                      ${LIBRT} ${CRYPTO_LIB}
+                      ${LIBRT} ${CRYPTO_LIB} ${PHOSPHOR_LIBRARY}
                       ${DL_LIBRARIES} ${BREAKPAD_LIBRARIES})
 set_target_properties(forestdb_hexamine PROPERTIES COMPILE_FLAGS "-D_FDB_TOOLS")
 

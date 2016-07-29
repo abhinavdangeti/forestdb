@@ -49,7 +49,7 @@ add_executable(fdb_anomaly_test
 target_link_libraries(fdb_anomaly_test ${PTHREAD_LIB} ${LIBM}
                       ${SNAPPY_LIBRARIES} ${ASYNC_IO_LIB}
                       ${MALLOC_LIBRARIES} ${PLATFORM_LIBRARY}
-                      ${LIBRT} ${CRYPTO_LIB}
+                      ${LIBRT} ${CRYPTO_LIB} ${PHOSPHOR_LIBRARY}
                       ${DL_LIBRARIES} ${BREAKPAD_LIBRARIES})
 set_target_properties(fdb_anomaly_test PROPERTIES COMPILE_FLAGS "-D_FDB_TOOLS")
 
@@ -63,7 +63,7 @@ add_executable(disk_sim_test
 target_link_libraries(disk_sim_test ${PTHREAD_LIB} ${LIBM}
                       ${SNAPPY_LIBRARIES} ${ASYNC_IO_LIB}
                       ${MALLOC_LIBRARIES} ${PLATFORM_LIBRARY}
-                      ${LIBRT} ${CRYPTO_LIB}
+                      ${LIBRT} ${CRYPTO_LIB} ${PHOSPHOR_LIBRARY}
                       ${DL_LIBRARIES} ${BREAKPAD_LIBRARIES})
 set_target_properties(disk_sim_test PROPERTIES COMPILE_FLAGS "-D_FDB_TOOLS")
 

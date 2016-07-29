@@ -32,6 +32,7 @@
 #include "arch.h"
 #include "debug.h"
 #include "bitwise_utils.h"
+#include "trace_wrapper.h"
 
 // Stolen from http://google-styleguide.googlecode.com/svn/trunk/cppguide.xml
 // A macro to disallow the copy constructor and operator= functions

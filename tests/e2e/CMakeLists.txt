@@ -8,7 +8,7 @@ add_executable(e2etest
 target_link_libraries(e2etest ${PTHREAD_LIB} ${LIBM}
                       ${SNAPPY_LIBRARIES} ${ASYNC_IO_LIB}
                       ${MALLOC_LIBRARIES} ${PLATFORM_LIBRARY}
-                      ${LIBRT} ${CRYPTO_LIB}
+                      ${LIBRT} ${CRYPTO_LIB} ${PHOSPHOR_LIBRARY}
                       ${DL_LIBRARIES} ${BREAKPAD_LIBRARIES})
 set_target_properties(e2etest PROPERTIES COMPILE_FLAGS "-D_FDB_TOOLS")
 
