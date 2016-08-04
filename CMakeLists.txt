@@ -228,6 +228,7 @@ SET(FORESTDB_CORE_SRC
     ${PROJECT_SOURCE_DIR}/src/memory_pool.cc
     ${PROJECT_SOURCE_DIR}/src/staleblock.cc
     ${PROJECT_SOURCE_DIR}/src/superblock.cc
+    ${PROJECT_SOURCE_DIR}/src/trace_wrapper.cc
     ${PROJECT_SOURCE_DIR}/src/transaction.cc
     ${PROJECT_SOURCE_DIR}/src/version.cc
     ${PROJECT_SOURCE_DIR}/src/wal.cc)

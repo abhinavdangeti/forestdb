@@ -1161,6 +1161,22 @@ const char* fdb_get_file_version(fdb_file_handle *fhandle);
 LIBFDB_API
 fdb_filemgr_ops_t* fdb_get_default_file_ops();
 
+/**
+ * Set trace option for select modules.
+ *
+ * @returns FDB_RESULT_SUCCESS
+ */
+LIBFDB_API
+fdb_status fdb_set_trace_option(fdb_trace_option_t option);
+
+/**
+ * Clears any set trace options.
+ *
+ * @returns FDB_RESULT_SUCCESS
+ */
+LIBFDB_API
+fdb_status fdb_clear_trace_options();
+
 #ifdef __cplusplus
 }
 #endif

@@ -17,6 +17,13 @@
 
 #pragma once
 
+#include <stdarg.h>
+
+#include <atomic>
+#include <mutex>
+
+#include "libforestdb/fdb_types.h"
+
 #ifdef _PHOSPHOR_LIB_AVAILABLE
 #include <phosphor/phosphor.h>
 #else
@@ -46,3 +53,31 @@
 #define TRACE_GLOBAL0(category, name)
 
 #endif
+
+class TraceMgr {
+public:
+    TraceMgr();
+
+    ~TraceMgr();
+
+    static TraceMgr* get(void);
+
+    static void shutdown(void);
+
+    // Adds an option for tracing
+    void setOption(fdb_trace_option_t opt);
+
+    // Clears all options from tracing
+    void clearOptions();
+
+    // Should or should not trace for option 'opt'
+    bool doTrace(fdb_trace_option_t opt);
+
+private:
+    // Tracing option(s)
+    std::atomic<uint16_t> options;
+
+    // Singleton creation
+    static std::mutex initGuard;
+    static std::atomic<TraceMgr *> instance;
+};

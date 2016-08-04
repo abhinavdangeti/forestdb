@@ -8066,6 +8066,9 @@ fdb_status fdb_shutdown()
             // Shutdown HBtrie's memory pool
             HBTrie::shutdownMemoryPool();
 
+            // Shutdown TraceMgr
+            TraceMgr::shutdown();
+
             spin_unlock(&initial_lock);
 #ifndef SPIN_INITIALIZER
             spin_destroy(&initial_lock);
@@ -8091,6 +8094,20 @@ const char* fdb_get_file_version(fdb_file_handle *fhandle)
         return "Error: file not opened yet!!!";
     }
     return ver_get_version_string(fhandle->getRootHandle()->file->getVersion());
+}
+
+LIBFDB_API
+fdb_status fdb_set_trace(fdb_trace_option_t option)
+{
+    TraceMgr::get()->setOption(option);
+    return FDB_RESULT_SUCCESS;
+}
+
+LIBFDB_API
+fdb_status fdb_clear_trace()
+{
+    TraceMgr::get()->clearOptions();
+    return FDB_RESULT_SUCCESS;
 }
 
 void _fdb_dump_handle(FdbKvsHandle *h) {

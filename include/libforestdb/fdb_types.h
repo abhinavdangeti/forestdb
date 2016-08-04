@@ -920,6 +920,18 @@ typedef struct {
     fdb_kvs_commit_marker_t *kvs_markers;
 } fdb_snapshot_info_t;
 
+/**
+ * Trace option to enable tracing for select modules
+ */
+typedef uint16_t fdb_trace_option_t;
+enum {
+    FDB_TRACE_ALL               = 0x0001,   // Trace everything
+    FDB_TRACE_PUBLIC            = 0x0002,   // Trace Public APIs only
+    FDB_TRACE_FORESTDB          = 0x0004,   // Trace ForestDB APIs only
+    FDB_TRACE_KVINSTANCE        = 0x0008,   // Trace KVInstance APIs only
+    FDB_TRACE_ITERATOR          = 0x0010,   // Trace Iterator APIs only
+};
+
 #ifdef __cplusplus
 }
 #endif
