@@ -3521,6 +3521,11 @@ fdb_set_start:
                 return wr;
             }
 
+            wr = handle->bhandle->flushBuffer();
+            if (wr != FDB_RESULT_SUCCESS) {
+                return wr;
+            }
+
             _fdb_dirty_update_finalize(handle, prev_node, new_node,
                                        &dirty_idtree_root, &dirty_seqtree_root, false);
 
@@ -3714,6 +3719,11 @@ fdb_commit_start:
         }
         handle->file->getWal()->setDirtyStatus_Wal(FDB_WAL_CLEAN);
         wal_flushed = true;
+
+        wr = handle->bhandle->flushBuffer();
+        if (wr != FDB_RESULT_SUCCESS) {
+            return wr;
+        }
 
         _fdb_dirty_update_finalize(handle, prev_node, new_node,
                                    &dirty_idtree_root, &dirty_seqtree_root, true);
@@ -5330,10 +5340,6 @@ fdb_status WalFlushCallbacks::flushItem(void *dbhandle,
         handle->trie->insert(item->header->key, item->header->keylen,
                              (void *)&_offset, (void *)&old_offset);
 
-        fs = handle->bhandle->flushBuffer();
-        if (fs != FDB_RESULT_SUCCESS) {
-            return fs;
-        }
         old_offset = _endian_decode(old_offset);
 
         if (handle->config.seqtree_opt == FDB_SEQTREE_USE) {
@@ -5351,10 +5357,6 @@ fdb_status WalFlushCallbacks::flushItem(void *dbhandle,
                                         (void *)&_offset, (void *)&old_offset_local);
             } else {
                 handle->seqtree->insert((void *)&_seqnum, (void *)&_offset);
-            }
-            fs = handle->bhandle->flushBuffer();
-            if (fs != FDB_RESULT_SUCCESS) {
-                return fs;
             }
         }
 
@@ -5504,7 +5506,6 @@ uint64_t WalFlushCallbacks::getOldOffset(void *dbhandle,
                                  item->header->keylen,
                                  (void*)&old_offset);
     }
-    handle->bhandle->flushBuffer();
     old_offset = _endian_decode(old_offset);
 
     return old_offset;
