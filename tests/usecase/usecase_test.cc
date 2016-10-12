@@ -1223,14 +1223,14 @@ void* invoke_initial_ops(void *args) {
     struct initial_args* ia = static_cast<initial_args *>(args);
 
     fdb_status status;
-    char keybuf[256], bodybuf[256];
+    char keybuf[256], bodybuf[2048];
+    sprintf(bodybuf, "body%2000dbig", 1234567890);
     for (int i = 0; i < ia->nsets; ++i) {
         sprintf(keybuf, "key%s%d", ia->key_prefix.c_str(), i);
-        sprintf(bodybuf, "body%d", i);
 
         status = fdb_set_kv(ia->handles.second,
                             (void*)keybuf, strlen(keybuf) + 1,
-                            (void*)bodybuf, strlen(bodybuf) + 1);
+                            (void*)bodybuf, 2008);
         fdb_assert(status == FDB_RESULT_SUCCESS, status, FDB_RESULT_SUCCESS);
 
         if (i % 100 == 0) {
@@ -1248,6 +1248,8 @@ void test_initial_build_duration(int nthreads,
                                  int individualsets,
                                  bool defaultkvs) {
 
+    fprintf(stderr, "%d\n", getpid());
+    sleep(10);
     TEST_INIT();
 
     int r = system(SHELL_DEL" uc_test* > errorlog.txt");
@@ -1323,6 +1325,10 @@ void test_initial_build_duration(int nthreads,
 }
 
 int main() {
+    test_initial_build_duration(1              /*number of threads*/,
+                                10000000         /*number of sets per thread*/,
+                                false          /*default kvs?*/);
+    return 1;
 
     /* Test single writer with multiple readers sharing a common
        pool of file handles, over single file for 30 seconds */
